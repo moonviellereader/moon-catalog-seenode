@@ -5,8 +5,8 @@ Bot: @MoonCatalogBot
 Optimized for Seenode.com hosting
 """
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 import csv
 import logging
 import os
@@ -58,9 +58,8 @@ Example: `/search villainess`
 📖 **Random book:**
 `/random`
 
-📋 **Browse alphabetically:**
-`/browse A` - Show all books starting with A
-`/browse #` - Show books starting with numbers
+📋 **Browse by alphabet:**
+`/catalog` - Browse A-Z with buttons!
 
 ℹ️ **Help:**
 `/help`
@@ -83,9 +82,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Example: `/search villainess tempest`
 
 📋 **Browse:**
+• `/catalog` - Browse with alphabet buttons! (NEW!)
 • `/browse A` - Show all books starting with A
 • `/browse #` - Show books starting with numbers
-• Available: A-Z and #
 
 📖 **Random:**
 • `/random` - Get a random book recommendation
@@ -172,7 +171,7 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "**Examples:**\n"
             "`/browse A` - Books starting with A\n"
             "`/browse #` - Books starting with numbers\n\n"
-            "Available: A-Z and #",
+            "💡 **Tip:** Use `/catalog` to browse with buttons!",
             parse_mode='Markdown'
         )
         return
@@ -209,6 +208,94 @@ async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"\n💡 Use `/search {letter.lower()}` for better filtering"
     
     await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
+
+
+async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show alphabet keyboard for browsing"""
+    
+    # Count books by letter
+    letter_counts = {}
+    for book in BOOKS:
+        first_char = book['title'][0].upper()
+        letter = first_char if first_char.isalpha() else '#'
+        letter_counts[letter] = letter_counts.get(letter, 0) + 1
+    
+    # Create inline keyboard with alphabet buttons (6 buttons per row)
+    keyboard = []
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'
+    
+    row = []
+    for letter in letters:
+        count = letter_counts.get(letter, 0)
+        if count > 0:  # Only show letters that have books
+            button_text = f"{letter} ({count})"
+            row.append(InlineKeyboardButton(button_text, callback_data=f"browse_{letter}"))
+            
+            if len(row) == 6 or letter == letters[-1]:  # 6 buttons per row
+                keyboard.append(row)
+                row = []
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = f"""
+📚 **Moon Read Catalog - Browse by Letter**
+
+Total Books: **{len(BOOKS)}**
+
+Click any letter below to see books starting with that letter:
+"""
+    
+    await update.message.reply_text(
+        message,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button clicks"""
+    query = update.callback_query
+    await query.answer()
+    
+    # Extract letter from callback_data (format: "browse_A")
+    action = query.data.split('_')
+    if len(action) == 2 and action[0] == 'browse':
+        letter = action[1]
+        
+        # Filter books by letter
+        if letter == '#':
+            filtered_books = [book for book in BOOKS if not book['title'][0].isalpha()]
+        else:
+            filtered_books = [book for book in BOOKS if book['title'][0].upper() == letter]
+        
+        if not filtered_books:
+            await query.edit_message_text(
+                f"📭 No books found starting with: **{letter}**",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Limit to 30 books
+        limited_books = filtered_books[:30]
+        
+        message = f"📚 **Books starting with '{letter}'**\n\n"
+        message += f"Total: **{len(filtered_books)}** book(s)\n"
+        if len(filtered_books) > 30:
+            message += f"_(Showing first 30)_\n"
+        message += "\n"
+        
+        for i, book in enumerate(limited_books, 1):
+            message += f"{i}. [{book['title']}]({book['link']})\n\n"
+        
+        if len(filtered_books) > 30:
+            message += f"_...and {len(filtered_books) - 30} more books_\n"
+            message += f"\n💡 Use `/catalog` to browse other letters"
+        
+        await query.edit_message_text(
+            message,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -262,13 +349,15 @@ def main():
     application.add_handler(CommandHandler("search", search_command))
     application.add_handler(CommandHandler("random", random_book))
     application.add_handler(CommandHandler("browse", browse_command))
+    application.add_handler(CommandHandler("catalog", catalog_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CallbackQueryHandler(button_callback))
     
     print("\n" + "=" * 70)
     print("✅ Bot started successfully!")
     print("=" * 70)
     print("🔍 Search: /search keyword")
-    print("📋 Browse: /browse A")
+    print("📋 Catalog: /catalog (with buttons!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
     print("=" * 70)
