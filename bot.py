@@ -2,7 +2,7 @@
 """
 Moon Read Catalog Bot - Seenode Deployment
 Bot: @MoonCatalogBot
-Optimized for Seenode.com hosting
+With Telegraph integration and inline keyboard
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,6 +11,7 @@ import csv
 import logging
 import os
 import random
+from telegraph import Telegraph
 
 # Setup logging
 logging.basicConfig(
@@ -24,8 +25,13 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required!")
 
+# Initialize Telegraph
+telegraph = Telegraph()
+telegraph.create_account(short_name='MoonRead', author_name='Moon Read Catalog')
+
 # Load catalog data
 BOOKS = []
+TELEGRAPH_LINKS = {}  # Cache for Telegraph links
 
 def load_catalog():
     """Load books from CSV file"""
@@ -39,6 +45,74 @@ def load_catalog():
     except Exception as e:
         logger.error(f"❌ Error loading catalog: {e}")
         BOOKS = []
+        return False
+
+
+def generate_telegraph_pages():
+    """Generate Telegraph pages for catalog (called once at startup)"""
+    global TELEGRAPH_LINKS
+    import time
+    
+    logger.info("📝 Generating Telegraph pages...")
+    
+    try:
+        # Group books by first letter
+        books_by_letter = {}
+        for book in BOOKS:
+            first_letter = book['title'][0].upper()
+            if not first_letter.isalpha():
+                first_letter = '#'  # For numbers and special characters
+            
+            if first_letter not in books_by_letter:
+                books_by_letter[first_letter] = []
+            books_by_letter[first_letter].append(book)
+        
+        # Sort letters
+        sorted_letters = sorted([l for l in books_by_letter.keys() if l != '#']) + (['#'] if '#' in books_by_letter else [])
+        
+        # Create Telegraph pages for each letter with delay to avoid flood control
+        for i, letter in enumerate(sorted_letters):
+            books = books_by_letter[letter]
+            
+            # Create HTML content for this letter
+            html_content = f'<h3>📚 Moon Read Catalog - Letter {letter}</h3>'
+            html_content += f'<p><strong>Books starting with "{letter}": {len(books)}</strong></p>'
+            html_content += '<hr>'
+            
+            for idx, book in enumerate(books, 1):
+                html_content += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
+            
+            # Create Telegraph page for this letter
+            title = f'Moon Read Catalog - {letter}' if letter != '#' else 'Moon Read Catalog - Numbers & Special'
+            
+            try:
+                response = telegraph.create_page(
+                    title=title,
+                    html_content=html_content,
+                    author_name='Moon Read',
+                    author_url='https://t.me/moon_read'
+                )
+                
+                TELEGRAPH_LINKS[letter] = {
+                    'url': f"https://telegra.ph/{response['path']}",
+                    'count': len(books)
+                }
+                
+                logger.info(f"✅ Created Telegraph page for letter {letter} ({len(books)} books)")
+                
+                # Add delay between requests to avoid flood control (10 seconds)
+                if i < len(sorted_letters) - 1:  # Don't delay after last one
+                    time.sleep(10)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error creating page for {letter}: {e}")
+                # Continue with other letters even if one fails
+        
+        logger.info(f"✅ Generated {len(TELEGRAPH_LINKS)} Telegraph pages successfully!")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating Telegraph pages: {e}")
         return False
 
 
@@ -60,6 +134,7 @@ Example: `/search villainess`
 
 📋 **Browse by alphabet:**
 `/catalog` - Browse A-Z with buttons!
+Or type: `KATALOG`
 
 ℹ️ **Help:**
 `/help`
@@ -81,10 +156,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Example: `/search romance`
 • Example: `/search villainess tempest`
 
-📋 **Browse:**
-• `/catalog` - Browse with alphabet buttons! (NEW!)
-• `/browse A` - Show all books starting with A
-• `/browse #` - Show books starting with numbers
+📋 **Catalog:**
+• `/catalog` or `KATALOG` - Browse with buttons!
+• Click any letter to see Telegraph page
+• All books organized alphabetically
 
 📖 **Random:**
 • `/random` - Get a random book recommendation
@@ -162,87 +237,42 @@ Want another? Type `/random` again!
     await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
 
 
-async def browse_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Browse books by first letter"""
-    
-    if not context.args:
-        await update.message.reply_text(
-            "❌ Please specify a letter!\n\n"
-            "**Examples:**\n"
-            "`/browse A` - Books starting with A\n"
-            "`/browse #` - Books starting with numbers\n\n"
-            "💡 **Tip:** Use `/catalog` to browse with buttons!",
-            parse_mode='Markdown'
-        )
-        return
-    
-    letter = context.args[0].upper()
-    
-    # Filter books by first letter
-    if letter == '#':
-        filtered_books = [book for book in BOOKS if not book['title'][0].isalpha()]
-    else:
-        filtered_books = [book for book in BOOKS if book['title'][0].upper() == letter]
-    
-    if not filtered_books:
-        await update.message.reply_text(
-            f"📭 No books found starting with: **{letter}**",
-            parse_mode='Markdown'
-        )
-        return
-    
-    # Limit to 30 books per message
-    limited_books = filtered_books[:30]
-    
-    message = f"📚 **Books starting with '{letter}'**\n\n"
-    message += f"Total: **{len(filtered_books)}** book(s)\n"
-    if len(filtered_books) > 30:
-        message += f"_(Showing first 30)_\n"
-    message += "\n"
-    
-    for i, book in enumerate(limited_books, 1):
-        message += f"{i}. [{book['title']}]({book['link']})\n\n"
-    
-    if len(filtered_books) > 30:
-        message += f"_...and {len(filtered_books) - 30} more books_\n"
-        message += f"\n💡 Use `/search {letter.lower()}` for better filtering"
-    
-    await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
-
-
 async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show alphabet keyboard for browsing"""
+    """Show alphabet keyboard with Telegraph links"""
     
-    # Count books by letter
-    letter_counts = {}
-    for book in BOOKS:
-        first_char = book['title'][0].upper()
-        letter = first_char if first_char.isalpha() else '#'
-        letter_counts[letter] = letter_counts.get(letter, 0) + 1
+    # Check if Telegraph links are ready
+    if not TELEGRAPH_LINKS:
+        await update.message.reply_text(
+            "⏳ Catalog is being prepared... Please try again in a moment.\n\n"
+            "You can use `/search keyword` to find books in the meantime!"
+        )
+        return
     
     # Create inline keyboard with alphabet buttons (6 buttons per row)
     keyboard = []
-    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'
+    sorted_letters = sorted([l for l in TELEGRAPH_LINKS.keys() if l != '#']) + (['#'] if '#' in TELEGRAPH_LINKS else [])
     
     row = []
-    for letter in letters:
-        count = letter_counts.get(letter, 0)
-        if count > 0:  # Only show letters that have books
-            button_text = f"{letter} ({count})"
-            row.append(InlineKeyboardButton(button_text, callback_data=f"browse_{letter}"))
-            
-            if len(row) == 6 or letter == letters[-1]:  # 6 buttons per row
-                keyboard.append(row)
-                row = []
+    for letter in sorted_letters:
+        data = TELEGRAPH_LINKS[letter]
+        button_text = f"{letter} ({data['count']})"
+        # Use URL button to directly open Telegraph page
+        row.append(InlineKeyboardButton(button_text, url=data['url']))
+        
+        if len(row) == 6 or letter == sorted_letters[-1]:  # 6 buttons per row
+            keyboard.append(row)
+            row = []
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = f"""
-📚 **Moon Read Catalog - Browse by Letter**
+📚 **Moon Read Full Catalog**
 
 Total Books: **{len(BOOKS)}**
 
-Click any letter below to see books starting with that letter:
+🔤 **Click any letter to browse:**
+
+Each button will open a Telegraph page with all books starting with that letter!
 """
     
     await update.message.reply_text(
@@ -250,52 +280,6 @@ Click any letter below to see books starting with that letter:
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
-
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button clicks"""
-    query = update.callback_query
-    await query.answer()
-    
-    # Extract letter from callback_data (format: "browse_A")
-    action = query.data.split('_')
-    if len(action) == 2 and action[0] == 'browse':
-        letter = action[1]
-        
-        # Filter books by letter
-        if letter == '#':
-            filtered_books = [book for book in BOOKS if not book['title'][0].isalpha()]
-        else:
-            filtered_books = [book for book in BOOKS if book['title'][0].upper() == letter]
-        
-        if not filtered_books:
-            await query.edit_message_text(
-                f"📭 No books found starting with: **{letter}**",
-                parse_mode='Markdown'
-            )
-            return
-        
-        # Limit to 30 books
-        limited_books = filtered_books[:30]
-        
-        message = f"📚 **Books starting with '{letter}'**\n\n"
-        message += f"Total: **{len(filtered_books)}** book(s)\n"
-        if len(filtered_books) > 30:
-            message += f"_(Showing first 30)_\n"
-        message += "\n"
-        
-        for i, book in enumerate(limited_books, 1):
-            message += f"{i}. [{book['title']}]({book['link']})\n\n"
-        
-        if len(filtered_books) > 30:
-            message += f"_...and {len(filtered_books) - 30} more books_\n"
-            message += f"\n💡 Use `/catalog` to browse other letters"
-        
-        await query.edit_message_text(
-            message,
-            parse_mode='Markdown',
-            disable_web_page_preview=True
-        )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -320,9 +304,18 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for letter in sorted(letter_counts.keys()):
         message += f"• {letter}: {letter_counts[letter]}\n"
     
-    message += f"\n💡 Use `/browse <letter>` to see books for any letter!"
+    message += f"\n💡 Use `/catalog` to browse with buttons!"
     
     await update.message.reply_text(message, parse_mode='Markdown')
+
+
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle plain text messages"""
+    text = update.message.text
+    
+    # Handle KATALOG keyword
+    if text.lower() == 'katalog':
+        await catalog_command(update, context)
 
 
 def main():
@@ -340,6 +333,17 @@ def main():
     
     print(f"✅ Loaded {len(BOOKS)} books")
     
+    # Generate Telegraph pages
+    print("\n📝 Generating Telegraph catalog pages...")
+    print("⏳ This will take about 4-5 minutes (10 sec delay between pages)")
+    print("💡 The bot will accept commands after generation is complete\n")
+    
+    if not generate_telegraph_pages():
+        print("⚠️  Warning: Failed to generate some Telegraph pages")
+        print("Bot will still work, but /catalog might have issues")
+    else:
+        print(f"✅ Telegraph pages ready!")
+    
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
@@ -348,16 +352,16 @@ def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("search", search_command))
     application.add_handler(CommandHandler("random", random_book))
-    application.add_handler(CommandHandler("browse", browse_command))
     application.add_handler(CommandHandler("catalog", catalog_command))
+    application.add_handler(CommandHandler("katalog", catalog_command))
     application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
     
     print("\n" + "=" * 70)
     print("✅ Bot started successfully!")
     print("=" * 70)
     print("🔍 Search: /search keyword")
-    print("📋 Catalog: /catalog (with buttons!)")
+    print("📋 Catalog: /catalog or KATALOG (Telegraph + Buttons!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
     print("=" * 70)
