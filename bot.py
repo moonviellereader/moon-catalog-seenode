@@ -25,9 +25,6 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required!")
 
-# Tutorial Group Link
-TUTORIAL_LINK = "https://t.me/Moonread_Tutor"
-
 # Initialize Telegraph
 telegraph = Telegraph()
 telegraph.create_account(short_name='MoonRead', author_name='Moon Read Catalog')
@@ -122,100 +119,139 @@ def generate_telegraph_pages():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message"""
     welcome_text = f"""
-🌙 **Welcome to Moon Read Catalog Bot!** 📚
+🌙 <b>Welcome to Moon Read Catalog Bot!</b> 📚
 
-Find novels from our collection of **{len(BOOKS)}+ EPUBs**!
+Find novels from our collection of <b>{len(BOOKS)}+ EPUBs</b>!
 
-**How to use:**
+<b>How to use:</b>
 
-🔍 **Search for a book:**
-`/search tempest`
-Example: `/search villainess`
+🔍 <b>Search for a book:</b>
+/search tempest
+Example: /search villainess
 
-📖 **Random book:**
-`/random`
+📖 <b>Random book:</b>
+/random
 
-📋 **Browse by alphabet:**
-`/catalog` - Browse A-Z with buttons!
-Or type: `KATALOG`
+📋 <b>Browse by alphabet:</b>
+/catalog - Browse A-Z with buttons!
+Or type: KATALOG
 
-📚 **Tutorial:**
-`/tutorial` - Join tutorial group
+📚 <b>Tutorial (Indonesian):</b>
+/tutorial - Panduan lengkap
 
-ℹ️ **Help:**
-`/help`
+ℹ️ <b>Help:</b>
+/help
 
 Start searching now! 🚀
 """
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
+    try:
+        await update.message.reply_text(welcome_text, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Error sending start message: {e}")
+        await update.message.reply_text(f"Welcome to Moon Read! We have {len(BOOKS)}+ books. Use /help for commands.")
+
+
+async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show tutorial/guide for using Moon Read"""
+    tutorial_text = """
+📚 <b>Moon Read Tutorial - Panduan Lengkap</b>
+
+<b>🌙 Tentang Moon Read:</b>
+Moon Read adalah perpustakaan digital dengan 1000+ novel EPUB gratis!
+
+<b>📱 Cara Menggunakan Bot:</b>
+
+1️⃣ <b>Cari Buku:</b>
+   Ketik: /search [kata kunci]
+   Contoh: /search romance
+   Contoh: /search villainess
+
+2️⃣ <b>Lihat Katalog Lengkap:</b>
+   Ketik: /catalog atau KATALOG
+   Klik huruf untuk lihat semua buku
+
+3️⃣ <b>Buku Random:</b>
+   Ketik: /random
+   Dapat rekomendasi acak!
+
+<b>🔗 Link Penting:</b>
+• Channel Utama: https://t.me/moon_read
+• Bot Catalog: @MoonCatalogBot
+
+<b>💡 Tips:</b>
+✅ Gunakan kata kunci spesifik untuk hasil lebih baik
+✅ Semua buku format EPUB (e-book)
+✅ Download langsung dari Telegram
+
+<b>❓ Butuh bantuan?</b>
+Ketik /help untuk melihat semua perintah!
+"""
+    try:
+        await update.message.reply_text(tutorial_text, parse_mode='HTML', disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"Error sending tutorial: {e}")
+        # Fallback without formatting
+        await update.message.reply_text(
+            "📚 Moon Read Tutorial\n\n"
+            "Cara menggunakan:\n"
+            "1. /search [keyword] - Cari buku\n"
+            "2. /catalog - Lihat semua buku\n"
+            "3. /random - Buku acak\n\n"
+            "Channel: https://t.me/moon_read"
+        )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show help message"""
     help_text = """
-📚 **Moon Read Catalog Bot - Help**
+📚 <b>Moon Read Catalog Bot - Help</b>
 
-**Available Commands:**
+<b>Available Commands:</b>
 
-🔍 **Search:**
-• `/search keyword` - Search for books
-• Example: `/search romance`
-• Example: `/search villainess tempest`
+🔍 <b>Search:</b>
+• /search keyword - Search for books
+• Example: /search romance
+• Example: /search villainess tempest
 
-📋 **Catalog:**
-• `/catalog` or `KATALOG` - Browse with buttons!
+📋 <b>Catalog:</b>
+• /catalog or KATALOG - Browse with buttons!
 • Click any letter to see Telegraph page
 • All books organized alphabetically
 
-📖 **Random:**
-• `/random` - Get a random book recommendation
+📖 <b>Random:</b>
+• /random - Get a random book recommendation
 
-📊 **Statistics:**
-• `/stats` - Show catalog statistics
+📊 <b>Statistics:</b>
+• /stats - Show catalog statistics
 
-📚 **Tutorial:**
-• `/tutorial` - Join tutorial group for guides & help
+📚 <b>Tutorial:</b>
+• /tutorial - Complete guide (Indonesian)
 
-**Search Tips:**
+<b>Search Tips:</b>
 • Search is case-insensitive
-• Use multiple keywords: `/search fantasy romance`
+• Use multiple keywords: /search fantasy romance
 • Partial matches work (e.g., "temp" finds "Tempest")
 
-**Need help?** Contact @moonreadteam
+<b>Need help?</b> Contact @moonreadteam
 """
-    await update.message.reply_text(help_text, parse_mode='Markdown')
-
-
-async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /tutorial command - direct link to tutorial group"""
-    message = f"""
-📚 **Tutorial & Panduan Moon Read**
-
-Bergabung dengan tutorial group untuk:
-✅ Panduan lengkap penggunaan bot
-✅ Tips mencari dan download buku
-✅ Tanya jawab seputar novel
-✅ Update novel terbaru
-
-👉 **Join sekarang:**
-{TUTORIAL_LINK}
-
-Klik link di atas atau copy-paste ke browser Telegram!
-"""
-    await update.message.reply_text(message, parse_mode='Markdown')
-    logger.info(f"Tutorial command used by {update.effective_user.username or update.effective_user.id}")
+    try:
+        await update.message.reply_text(help_text, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Error sending help: {e}")
+        await update.message.reply_text("Use /search, /catalog, /random, /stats, /tutorial")
 
 
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Search for books using /search command"""
+    import html
     
     if not context.args:
         await update.message.reply_text(
             "❌ Please provide a search keyword!\n\n"
-            "**Example:**\n"
-            "`/search tempest`\n"
-            "`/search villainess romance`",
-            parse_mode='Markdown'
+            "<b>Example:</b>\n"
+            "/search tempest\n"
+            "/search villainess romance",
+            parse_mode='HTML'
         )
         return
     
@@ -224,46 +260,64 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not results:
         await update.message.reply_text(
-            f"📭 No books found for: **{keyword}**\n\n"
+            f"📭 No books found for: <b>{html.escape(keyword)}</b>\n\n"
             "Try different keywords!",
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         return
     
     limited_results = results[:20]
     
-    message = f"🔍 **Search Results for: {keyword}**\n\n"
-    message += f"Found **{len(results)}** book(s)\n"
+    message = f"🔍 <b>Search Results for: {html.escape(keyword)}</b>\n\n"
+    message += f"Found <b>{len(results)}</b> book(s)\n"
     if len(results) > 20:
-        message += f"_(Showing first 20 results)_\n"
+        message += f"<i>(Showing first 20 results)</i>\n"
     message += "\n"
     
     for i, book in enumerate(limited_results, 1):
-        message += f"{i}. [{book['title']}]({book['link']})\n\n"
+        # Escape title to prevent entity parsing errors
+        safe_title = html.escape(book['title'])
+        message += f"{i}. <a href=\"{book['link']}\">{safe_title}</a>\n\n"
     
     if len(results) > 20:
-        message += f"_...and {len(results) - 20} more results_\n"
+        message += f"<i>...and {len(results) - 20} more results</i>\n"
         message += f"\n💡 Tip: Use more specific keywords to narrow results"
     
-    await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
+    try:
+        await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"Error sending search results: {e}")
+        # Fallback: Send without formatting
+        simple_message = f"Found {len(results)} books for: {keyword}\n\n"
+        for i, book in enumerate(limited_results, 1):
+            simple_message += f"{i}. {book['title']}\n{book['link']}\n\n"
+        await update.message.reply_text(simple_message, disable_web_page_preview=True)
+
 
 
 async def random_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a random book"""
+    import html
+    
     if not BOOKS:
         await update.message.reply_text("❌ Catalog not loaded. Please try again later.")
         return
     
     book = random.choice(BOOKS)
+    safe_title = html.escape(book['title'])
     
     message = f"""
-📖 **Random Book Recommendation**
+📖 <b>Random Book Recommendation</b>
 
-[{book['title']}]({book['link']})
+<a href="{book['link']}">{safe_title}</a>
 
-Want another? Type `/random` again!
+Want another? Type /random again!
 """
-    await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
+    try:
+        await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"Error sending random book: {e}")
+        await update.message.reply_text(f"📖 Random Book:\n\n{book['title']}\n{book['link']}", disable_web_page_preview=True)
 
 
 async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -273,7 +327,7 @@ async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not TELEGRAPH_LINKS:
         await update.message.reply_text(
             "⏳ Catalog is being prepared... Please try again in a moment.\n\n"
-            "You can use `/search keyword` to find books in the meantime!"
+            "You can use /search keyword to find books in the meantime!"
         )
         return
     
@@ -295,20 +349,27 @@ async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = f"""
-📚 **Moon Read Full Catalog**
+📚 <b>Moon Read Full Catalog</b>
 
-Total Books: **{len(BOOKS)}**
+Total Books: <b>{len(BOOKS)}</b>
 
-🔤 **Click any letter to browse:**
+🔤 <b>Click any letter to browse:</b>
 
 Each button will open a Telegraph page with all books starting with that letter!
 """
     
-    await update.message.reply_text(
-        message,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+    try:
+        await update.message.reply_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        logger.error(f"Error sending catalog: {e}")
+        await update.message.reply_text(
+            f"📚 Moon Read Catalog\n\nTotal Books: {len(BOOKS)}\n\nUse /search to find books!",
+            reply_markup=reply_markup
+        )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -325,17 +386,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         letter = first_char if first_char.isalpha() else '#'
         letter_counts[letter] = letter_counts.get(letter, 0) + 1
     
-    message = f"📊 **Moon Read Catalog Statistics**\n\n"
-    message += f"📚 **Total Books:** {len(BOOKS)}\n\n"
-    message += f"🔤 **Books by Letter:**\n"
+    message = f"📊 <b>Moon Read Catalog Statistics</b>\n\n"
+    message += f"📚 <b>Total Books:</b> {len(BOOKS)}\n\n"
+    message += f"🔤 <b>Books by Letter:</b>\n"
     
     # Show counts for each letter
     for letter in sorted(letter_counts.keys()):
         message += f"• {letter}: {letter_counts[letter]}\n"
     
-    message += f"\n💡 Use `/catalog` to browse with buttons!"
+    message += f"\n💡 Use /catalog to browse with buttons!"
     
-    await update.message.reply_text(message, parse_mode='Markdown')
+    try:
+        await update.message.reply_text(message, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Error sending stats: {e}")
+        simple_message = f"📊 Moon Read Statistics\n\nTotal Books: {len(BOOKS)}\n\nUse /catalog to browse!"
+        await update.message.reply_text(simple_message)
 
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -394,7 +460,7 @@ def main():
     print("📋 Catalog: /catalog or KATALOG (Telegraph + Buttons!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
-    print("📚 Tutorial: /tutorial")
+    print("📚 Tutorial: /tutorial (Indonesian)")
     print("=" * 70)
     print("\n🚀 Bot is running!\n")
     
