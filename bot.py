@@ -25,6 +25,9 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required!")
 
+# Tutorial Group Link
+TUTORIAL_LINK = "https://t.me/Moonread_Tutor"
+
 # Initialize Telegraph
 telegraph = Telegraph()
 telegraph.create_account(short_name='MoonRead', author_name='Moon Read Catalog')
@@ -136,6 +139,9 @@ Example: `/search villainess`
 `/catalog` - Browse A-Z with buttons!
 Or type: `KATALOG`
 
+📚 **Tutorial:**
+`/tutorial` - Join tutorial group
+
 ℹ️ **Help:**
 `/help`
 
@@ -167,6 +173,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📊 **Statistics:**
 • `/stats` - Show catalog statistics
 
+📚 **Tutorial:**
+• `/tutorial` - Join tutorial group for guides & help
+
 **Search Tips:**
 • Search is case-insensitive
 • Use multiple keywords: `/search fantasy romance`
@@ -175,6 +184,26 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 **Need help?** Contact @moonreadteam
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
+
+
+async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /tutorial command - direct link to tutorial group"""
+    message = f"""
+📚 **Tutorial & Panduan Moon Read**
+
+Bergabung dengan tutorial group untuk:
+✅ Panduan lengkap penggunaan bot
+✅ Tips mencari & download buku
+✅ Tanya jawab seputar novel
+✅ Update novel terbaru
+
+👉 **Join sekarang:**
+{TUTORIAL_LINK}
+
+Klik link di atas atau copy-paste ke browser Telegram!
+"""
+    await update.message.reply_text(message, parse_mode='Markdown')
+    logger.info(f"Tutorial command used by {update.effective_user.username or update.effective_user.id}")
 
 
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -350,6 +379,7 @@ def main():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("tutorial", tutorial_command))
     application.add_handler(CommandHandler("search", search_command))
     application.add_handler(CommandHandler("random", random_book))
     application.add_handler(CommandHandler("catalog", catalog_command))
@@ -364,6 +394,7 @@ def main():
     print("📋 Catalog: /catalog or KATALOG (Telegraph + Buttons!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
+    print("📚 Tutorial: /tutorial")
     print("=" * 70)
     print("\n🚀 Bot is running!\n")
     
