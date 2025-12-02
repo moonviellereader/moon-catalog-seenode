@@ -193,7 +193,7 @@ async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Bergabung dengan tutorial group untuk:
 ✅ Panduan lengkap penggunaan bot
-✅ Tips mencari & download buku
+✅ Tips mencari dan download buku
 ✅ Tanya jawab seputar novel
 ✅ Update novel terbaru
 
