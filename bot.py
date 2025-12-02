@@ -152,53 +152,16 @@ Start searching now! 🚀
 
 
 async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show tutorial/guide for using Moon Read"""
-    tutorial_text = """
-📚 <b>Moon Read Tutorial - Panduan Lengkap</b>
-
-<b>🌙 Tentang Moon Read:</b>
-Moon Read adalah perpustakaan digital dengan 1000+ novel EPUB gratis!
-
-<b>📱 Cara Menggunakan Bot:</b>
-
-1️⃣ <b>Cari Buku:</b>
-   Ketik: /search [kata kunci]
-   Contoh: /search romance
-   Contoh: /search villainess
-
-2️⃣ <b>Lihat Katalog Lengkap:</b>
-   Ketik: /catalog atau KATALOG
-   Klik huruf untuk lihat semua buku
-
-3️⃣ <b>Buku Random:</b>
-   Ketik: /random
-   Dapat rekomendasi acak!
-
-<b>🔗 Link Penting:</b>
-• Channel Utama: https://t.me/moon_read
-• Bot Catalog: @MoonCatalogBot
-
-<b>💡 Tips:</b>
-✅ Gunakan kata kunci spesifik untuk hasil lebih baik
-✅ Semua buku format EPUB (e-book)
-✅ Download langsung dari Telegram
-
-<b>❓ Butuh bantuan?</b>
-Ketik /help untuk melihat semua perintah!
-"""
+    """Show tutorial link"""
+    tutorial_text = """📚 <b>Moon Read Tutorial</b>
+🔗: https://t.me/Moonread_Tutor"""
+    
     try:
-        await update.message.reply_text(tutorial_text, parse_mode='HTML', disable_web_page_preview=True)
+        await update.message.reply_text(tutorial_text, parse_mode='HTML', disable_web_page_preview=False)
     except Exception as e:
         logger.error(f"Error sending tutorial: {e}")
         # Fallback without formatting
-        await update.message.reply_text(
-            "📚 Moon Read Tutorial\n\n"
-            "Cara menggunakan:\n"
-            "1. /search [keyword] - Cari buku\n"
-            "2. /catalog - Lihat semua buku\n"
-            "3. /random - Buku acak\n\n"
-            "Channel: https://t.me/moon_read"
-        )
+        await update.message.reply_text("📚 Moon Read Tutorial\n🔗: https://t.me/Moonread_Tutor")
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
