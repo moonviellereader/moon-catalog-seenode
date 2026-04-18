@@ -2,7 +2,7 @@
 """
 Moon Read Catalog Bot - Seenode Deployment
 Bot: @MoonCatalogBot
-With Telegraph integration and inline keyboard
+With Telegraph integration and special T letter split
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -49,7 +49,7 @@ def load_catalog():
 
 
 def generate_telegraph_pages():
-    """Generate Telegraph pages for catalog (called once at startup)"""
+    """Generate Telegraph pages for catalog with special T letter split"""
     global TELEGRAPH_LINKS
     import time
     
@@ -61,7 +61,7 @@ def generate_telegraph_pages():
         for book in BOOKS:
             first_letter = book['title'][0].upper()
             if not first_letter.isalpha():
-                first_letter = '#'  # For numbers and special characters
+                first_letter = '#'
             
             if first_letter not in books_by_letter:
                 books_by_letter[first_letter] = []
@@ -70,43 +70,127 @@ def generate_telegraph_pages():
         # Sort letters
         sorted_letters = sorted([l for l in books_by_letter.keys() if l != '#']) + (['#'] if '#' in books_by_letter else [])
         
-        # Create Telegraph pages for each letter with delay to avoid flood control
+        # Create Telegraph pages
         for i, letter in enumerate(sorted_letters):
             books = books_by_letter[letter]
             
-            # Create HTML content for this letter
-            html_content = f'<h3>📚 Moon Read Catalog - Letter {letter}</h3>'
-            html_content += f'<p><strong>Books starting with "{letter}": {len(books)}</strong></p>'
-            html_content += '<hr>'
-            
-            for idx, book in enumerate(books, 1):
-                html_content += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
-            
-            # Create Telegraph page for this letter
-            title = f'Moon Read Catalog - {letter}' if letter != '#' else 'Moon Read Catalog - Numbers & Special'
-            
-            try:
-                response = telegraph.create_page(
-                    title=title,
-                    html_content=html_content,
-                    author_name='Moon Read',
-                    author_url='https://t.me/moon_read'
-                )
+            # Special handling for T - split into two categories
+            if letter == 'T' and len(books) > 150:
+                logger.info(f"📝 Letter T has {len(books)} books - splitting into two categories")
                 
-                TELEGRAPH_LINKS[letter] = {
-                    'url': f"https://telegra.ph/{response['path']}",
-                    'count': len(books)
-                }
+                # Split T novels
+                the_am_books = []
+                the_nz_others_books = []
                 
-                logger.info(f"✅ Created Telegraph page for letter {letter} ({len(books)} books)")
+                for book in books:
+                    title_upper = book['title'].upper()
+                    
+                    # Check if starts with "THE "
+                    if title_upper.startswith('THE '):
+                        # Get the word after "THE "
+                        remaining = title_upper[4:].strip()
+                        if remaining:
+                            second_word_first = remaining[0]
+                            
+                            # A-M category
+                            if second_word_first >= 'A' and second_word_first <= 'M':
+                                the_am_books.append(book)
+                            # N-Z category
+                            else:
+                                the_nz_others_books.append(book)
+                        else:
+                            the_nz_others_books.append(book)
+                    else:
+                        # Not starting with "THE " - put in second category
+                        the_nz_others_books.append(book)
                 
-                # Add delay between requests to avoid flood control (10 seconds)
-                if i < len(sorted_letters) - 1:  # Don't delay after last one
+                # Create Telegraph page for T (THE A-M)
+                html_content_am = f'<h3>📚 Moon Read Catalog - Letter T (THE A-M)</h3>'
+                html_content_am += f'<p><strong>Books starting with "THE A-M": {len(the_am_books)}</strong></p>'
+                html_content_am += '<hr>'
+                
+                for idx, book in enumerate(the_am_books, 1):
+                    html_content_am += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
+                
+                try:
+                    response_am = telegraph.create_page(
+                        title='Moon Read Catalog - T (THE A-M)',
+                        html_content=html_content_am,
+                        author_name='Moon Read',
+                        author_url='https://t.me/moon_read'
+                    )
+                    
+                    TELEGRAPH_LINKS['T_AM'] = {
+                        'url': f"https://telegra.ph/{response_am['path']}",
+                        'count': len(the_am_books),
+                        'label': 'T (THE A-M)'
+                    }
+                    
+                    logger.info(f"✅ Created Telegraph page for T (THE A-M) ({len(the_am_books)} books)")
                     time.sleep(10)
                     
-            except Exception as e:
-                logger.error(f"❌ Error creating page for {letter}: {e}")
-                # Continue with other letters even if one fails
+                except Exception as e:
+                    logger.error(f"❌ Error creating page for T (THE A-M): {e}")
+                
+                # Create Telegraph page for T (THE N-Z + Others)
+                html_content_nz = f'<h3>📚 Moon Read Catalog - Letter T (THE N-Z + Others)</h3>'
+                html_content_nz += f'<p><strong>Books starting with "THE N-Z" + other T novels: {len(the_nz_others_books)}</strong></p>'
+                html_content_nz += '<hr>'
+                
+                for idx, book in enumerate(the_nz_others_books, 1):
+                    html_content_nz += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
+                
+                try:
+                    response_nz = telegraph.create_page(
+                        title='Moon Read Catalog - T (THE N-Z + Others)',
+                        html_content=html_content_nz,
+                        author_name='Moon Read',
+                        author_url='https://t.me/moon_read'
+                    )
+                    
+                    TELEGRAPH_LINKS['T_NZ'] = {
+                        'url': f"https://telegra.ph/{response_nz['path']}",
+                        'count': len(the_nz_others_books),
+                        'label': 'T (THE N-Z+)'
+                    }
+                    
+                    logger.info(f"✅ Created Telegraph page for T (THE N-Z + Others) ({len(the_nz_others_books)} books)")
+                    time.sleep(10)
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error creating page for T (THE N-Z + Others): {e}")
+                
+            else:
+                # Normal handling for other letters
+                html_content = f'<h3>📚 Moon Read Catalog - Letter {letter}</h3>'
+                html_content += f'<p><strong>Books starting with "{letter}": {len(books)}</strong></p>'
+                html_content += '<hr>'
+                
+                for idx, book in enumerate(books, 1):
+                    html_content += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
+                
+                title = f'Moon Read Catalog - {letter}' if letter != '#' else 'Moon Read Catalog - Numbers & Special'
+                
+                try:
+                    response = telegraph.create_page(
+                        title=title,
+                        html_content=html_content,
+                        author_name='Moon Read',
+                        author_url='https://t.me/moon_read'
+                    )
+                    
+                    TELEGRAPH_LINKS[letter] = {
+                        'url': f"https://telegra.ph/{response['path']}",
+                        'count': len(books)
+                    }
+                    
+                    logger.info(f"✅ Created Telegraph page for letter {letter} ({len(books)} books)")
+                    
+                    if i < len(sorted_letters) - 1:
+                        time.sleep(10)
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error creating page for {letter}: {e}")
         
         logger.info(f"✅ Generated {len(TELEGRAPH_LINKS)} Telegraph pages successfully!")
         return True
@@ -119,102 +203,74 @@ def generate_telegraph_pages():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send welcome message"""
     welcome_text = f"""
-🌙 <b>Welcome to Moon Read Catalog Bot!</b> 📚
+🌙 **Welcome to Moon Read Catalog Bot!** 📚
 
-Find novels from our collection of <b>{len(BOOKS)}+ EPUBs</b>!
+Find novels from our collection of **{len(BOOKS)}+ EPUBs**!
 
-<b>How to use:</b>
+**How to use:**
 
-🔍 <b>Search for a book:</b>
-/search tempest
-Example: /search villainess
+🔍 **Search for a book:**
+`/search tempest`
+Example: `/search villainess`
 
-📖 <b>Random book:</b>
-/random
+📖 **Random book:**
+`/random`
 
-📋 <b>Browse by alphabet:</b>
-/catalog - Browse A-Z with buttons!
-Or type: KATALOG
+📋 **Browse by alphabet:**
+`/catalog` - Browse A-Z with buttons!
+Or type: `KATALOG`
 
-📚 <b>Tutorial (Indonesian):</b>
-/tutorial - Panduan lengkap
-
-ℹ️ <b>Help:</b>
-/help
+ℹ️ **Help:**
+`/help`
 
 Start searching now! 🚀
 """
-    try:
-        await update.message.reply_text(welcome_text, parse_mode='HTML')
-    except Exception as e:
-        logger.error(f"Error sending start message: {e}")
-        await update.message.reply_text(f"Welcome to Moon Read! We have {len(BOOKS)}+ books. Use /help for commands.")
-
-
-async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show tutorial link"""
-    tutorial_text = """📚 <b>Moon Read Tutorial</b>
-🔗: https://t.me/Moonread_Tutor"""
-    
-    try:
-        await update.message.reply_text(tutorial_text, parse_mode='HTML', disable_web_page_preview=False)
-    except Exception as e:
-        logger.error(f"Error sending tutorial: {e}")
-        # Fallback without formatting
-        await update.message.reply_text("📚 Moon Read Tutorial\n🔗: https://t.me/Moonread_Tutor")
+    await update.message.reply_text(welcome_text, parse_mode='Markdown')
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show help message"""
     help_text = """
-📚 <b>Moon Read Catalog Bot - Help</b>
+📚 **Moon Read Catalog Bot - Help**
 
-<b>Available Commands:</b>
+**Available Commands:**
 
-🔍 <b>Search:</b>
-• /search keyword - Search for books
-• Example: /search romance
-• Example: /search villainess tempest
+🔍 **Search:**
+• `/search keyword` - Search for books
+• Example: `/search romance`
+• Example: `/search villainess tempest`
 
-📋 <b>Catalog:</b>
-• /catalog or KATALOG - Browse with buttons!
+📋 **Catalog:**
+• `/catalog` or `KATALOG` - Browse with buttons!
 • Click any letter to see Telegraph page
 • All books organized alphabetically
 
-📖 <b>Random:</b>
-• /random - Get a random book recommendation
+📖 **Random:**
+• `/random` - Get a random book recommendation
 
-📊 <b>Statistics:</b>
-• /stats - Show catalog statistics
+📊 **Statistics:**
+• `/stats` - Show catalog statistics
 
-📚 <b>Tutorial:</b>
-• /tutorial - Complete guide (Indonesian)
-
-<b>Search Tips:</b>
+**Search Tips:**
 • Search is case-insensitive
-• Use multiple keywords: /search fantasy romance
+• Use multiple keywords: `/search fantasy romance`
 • Partial matches work (e.g., "temp" finds "Tempest")
 
-<b>Need help?</b> Contact @moonreadteam
+**Need help?** Contact @moonreadteam
 """
-    try:
-        await update.message.reply_text(help_text, parse_mode='HTML')
-    except Exception as e:
-        logger.error(f"Error sending help: {e}")
-        await update.message.reply_text("Use /search, /catalog, /random, /stats, /tutorial")
+    await update.message.reply_text(help_text, parse_mode='Markdown')
 
 
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Search for books using /search command"""
-    import html
     
     if not context.args:
         await update.message.reply_text(
             "❌ Please provide a search keyword!\n\n"
-            "<b>Example:</b>\n"
-            "/search tempest\n"
-            "/search villainess romance",
-            parse_mode='HTML'
+            "**Example:**\n"
+            "`/search tempest`\n"
+            "`/search villainess romance`",
+            parse_mode='Markdown'
         )
         return
     
@@ -223,116 +279,105 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not results:
         await update.message.reply_text(
-            f"📭 No books found for: <b>{html.escape(keyword)}</b>\n\n"
+            f"📭 No books found for: **{keyword}**\n\n"
             "Try different keywords!",
-            parse_mode='HTML'
+            parse_mode='Markdown'
         )
         return
     
     limited_results = results[:20]
     
-    message = f"🔍 <b>Search Results for: {html.escape(keyword)}</b>\n\n"
-    message += f"Found <b>{len(results)}</b> book(s)\n"
+    message = f"🔍 **Search Results for: {keyword}**\n\n"
+    message += f"Found **{len(results)}** book(s)\n"
     if len(results) > 20:
-        message += f"<i>(Showing first 20 results)</i>\n"
+        message += f"_(Showing first 20 results)_\n"
     message += "\n"
     
     for i, book in enumerate(limited_results, 1):
-        # Escape title to prevent entity parsing errors
-        safe_title = html.escape(book['title'])
-        message += f"{i}. <a href=\"{book['link']}\">{safe_title}</a>\n\n"
+        message += f"{i}. [{book['title']}]({book['link']})\n\n"
     
     if len(results) > 20:
-        message += f"<i>...and {len(results) - 20} more results</i>\n"
+        message += f"_...and {len(results) - 20} more results_\n"
         message += f"\n💡 Tip: Use more specific keywords to narrow results"
     
-    try:
-        await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
-    except Exception as e:
-        logger.error(f"Error sending search results: {e}")
-        # Fallback: Send without formatting
-        simple_message = f"Found {len(results)} books for: {keyword}\n\n"
-        for i, book in enumerate(limited_results, 1):
-            simple_message += f"{i}. {book['title']}\n{book['link']}\n\n"
-        await update.message.reply_text(simple_message, disable_web_page_preview=True)
-
+    await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
 
 
 async def random_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a random book"""
-    import html
-    
     if not BOOKS:
         await update.message.reply_text("❌ Catalog not loaded. Please try again later.")
         return
     
     book = random.choice(BOOKS)
-    safe_title = html.escape(book['title'])
     
     message = f"""
-📖 <b>Random Book Recommendation</b>
+📖 **Random Book Recommendation**
 
-<a href="{book['link']}">{safe_title}</a>
+[{book['title']}]({book['link']})
 
-Want another? Type /random again!
+Want another? Type `/random` again!
 """
-    try:
-        await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
-    except Exception as e:
-        logger.error(f"Error sending random book: {e}")
-        await update.message.reply_text(f"📖 Random Book:\n\n{book['title']}\n{book['link']}", disable_web_page_preview=True)
+    await update.message.reply_text(message, parse_mode='Markdown', disable_web_page_preview=True)
 
 
 async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show alphabet keyboard with Telegraph links"""
     
-    # Check if Telegraph links are ready
     if not TELEGRAPH_LINKS:
         await update.message.reply_text(
             "⏳ Catalog is being prepared... Please try again in a moment.\n\n"
-            "You can use /search keyword to find books in the meantime!"
+            "You can use `/search keyword` to find books in the meantime!"
         )
         return
     
-    # Create inline keyboard with alphabet buttons (6 buttons per row)
+    # Create inline keyboard with alphabet buttons
     keyboard = []
-    sorted_letters = sorted([l for l in TELEGRAPH_LINKS.keys() if l != '#']) + (['#'] if '#' in TELEGRAPH_LINKS else [])
+    
+    # Get all letter keys (including T_AM and T_NZ)
+    all_keys = list(TELEGRAPH_LINKS.keys())
+    
+    # Sort: A-Z (excluding T_AM, T_NZ), then T_AM, T_NZ, then #
+    regular_letters = sorted([k for k in all_keys if k.isalpha() and k not in ['T']])
+    t_keys = [k for k in all_keys if k.startswith('T_')]
+    special_keys = [k for k in all_keys if k == '#']
+    
+    sorted_keys = regular_letters + t_keys + special_keys
     
     row = []
-    for letter in sorted_letters:
-        data = TELEGRAPH_LINKS[letter]
-        button_text = f"{letter} ({data['count']})"
-        # Use URL button to directly open Telegraph page
+    for key in sorted_keys:
+        data = TELEGRAPH_LINKS[key]
+        
+        # Use custom label if available, otherwise use key
+        button_text = data.get('label', f"{key} ({data['count']})")
+        if 'label' not in data:
+            button_text = f"{key} ({data['count']})"
+        
         row.append(InlineKeyboardButton(button_text, url=data['url']))
         
-        if len(row) == 6 or letter == sorted_letters[-1]:  # 6 buttons per row
+        if len(row) == 6 or key == sorted_keys[-1]:
             keyboard.append(row)
             row = []
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     message = f"""
-📚 <b>Moon Read Full Catalog</b>
+📚 **Moon Read Full Catalog**
 
-Total Books: <b>{len(BOOKS)}</b>
+Total Books: **{len(BOOKS)}**
 
-🔤 <b>Click any letter to browse:</b>
+🔤 **Click any letter to browse:**
 
 Each button will open a Telegraph page with all books starting with that letter!
+
+**Note:** Letter T is split into two parts due to size.
 """
     
-    try:
-        await update.message.reply_text(
-            message,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        logger.error(f"Error sending catalog: {e}")
-        await update.message.reply_text(
-            f"📚 Moon Read Catalog\n\nTotal Books: {len(BOOKS)}\n\nUse /search to find books!",
-            reply_markup=reply_markup
-        )
+    await update.message.reply_text(
+        message,
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -349,29 +394,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         letter = first_char if first_char.isalpha() else '#'
         letter_counts[letter] = letter_counts.get(letter, 0) + 1
     
-    message = f"📊 <b>Moon Read Catalog Statistics</b>\n\n"
-    message += f"📚 <b>Total Books:</b> {len(BOOKS)}\n\n"
-    message += f"🔤 <b>Books by Letter:</b>\n"
+    message = f"📊 **Moon Read Catalog Statistics**\n\n"
+    message += f"📚 **Total Books:** {len(BOOKS)}\n\n"
+    message += f"🔤 **Books by Letter:**\n"
     
-    # Show counts for each letter
     for letter in sorted(letter_counts.keys()):
         message += f"• {letter}: {letter_counts[letter]}\n"
     
-    message += f"\n💡 Use /catalog to browse with buttons!"
+    message += f"\n💡 Use `/catalog` to browse with buttons!"
     
-    try:
-        await update.message.reply_text(message, parse_mode='HTML')
-    except Exception as e:
-        logger.error(f"Error sending stats: {e}")
-        simple_message = f"📊 Moon Read Statistics\n\nTotal Books: {len(BOOKS)}\n\nUse /catalog to browse!"
-        await update.message.reply_text(simple_message)
+    await update.message.reply_text(message, parse_mode='Markdown')
 
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle plain text messages"""
     text = update.message.text
     
-    # Handle KATALOG keyword
     if text.lower() == 'katalog':
         await catalog_command(update, context)
 
@@ -383,7 +421,6 @@ def main():
     print("🌐 Deployed on Seenode.com")
     print("=" * 70)
     
-    # Load catalog
     print("📚 Loading catalog...")
     if not load_catalog():
         print("❌ Failed to load catalog!")
@@ -391,9 +428,8 @@ def main():
     
     print(f"✅ Loaded {len(BOOKS)} books")
     
-    # Generate Telegraph pages
     print("\n📝 Generating Telegraph catalog pages...")
-    print("⏳ This will take about 4-5 minutes (10 sec delay between pages)")
+    print("⏳ This will take about 5-7 minutes (Letter T split into 2 pages)")
     print("💡 The bot will accept commands after generation is complete\n")
     
     if not generate_telegraph_pages():
@@ -402,13 +438,11 @@ def main():
     else:
         print(f"✅ Telegraph pages ready!")
     
-    # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("tutorial", tutorial_command))
     application.add_handler(CommandHandler("search", search_command))
     application.add_handler(CommandHandler("random", random_book))
     application.add_handler(CommandHandler("catalog", catalog_command))
@@ -420,14 +454,12 @@ def main():
     print("✅ Bot started successfully!")
     print("=" * 70)
     print("🔍 Search: /search keyword")
-    print("📋 Catalog: /catalog or KATALOG (Telegraph + Buttons!)")
+    print("📋 Catalog: /catalog (T split into 2 categories!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
-    print("📚 Tutorial: /tutorial (Indonesian)")
     print("=" * 70)
     print("\n🚀 Bot is running!\n")
     
-    # Run bot (polling mode for Seenode)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
