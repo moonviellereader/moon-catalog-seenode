@@ -2,7 +2,7 @@
 """
 Moon Read Catalog Bot - Seenode Deployment
 Bot: @MoonCatalogBot
-With Telegraph integration and special T letter split
+With Telegraph integration and inline keyboard
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -49,7 +49,7 @@ def load_catalog():
 
 
 def generate_telegraph_pages():
-    """Generate Telegraph pages for catalog with special T letter split"""
+    """Generate Telegraph pages for catalog (called once at startup)"""
     global TELEGRAPH_LINKS
     import time
     
@@ -61,7 +61,7 @@ def generate_telegraph_pages():
         for book in BOOKS:
             first_letter = book['title'][0].upper()
             if not first_letter.isalpha():
-                first_letter = '#'
+                first_letter = '#'  # For numbers and special characters
             
             if first_letter not in books_by_letter:
                 books_by_letter[first_letter] = []
@@ -70,127 +70,43 @@ def generate_telegraph_pages():
         # Sort letters
         sorted_letters = sorted([l for l in books_by_letter.keys() if l != '#']) + (['#'] if '#' in books_by_letter else [])
         
-        # Create Telegraph pages
+        # Create Telegraph pages for each letter with delay to avoid flood control
         for i, letter in enumerate(sorted_letters):
             books = books_by_letter[letter]
             
-            # Special handling for T - split into two categories
-            if letter == 'T' and len(books) > 150:
-                logger.info(f"📝 Letter T has {len(books)} books - splitting into two categories")
+            # Create HTML content for this letter
+            html_content = f'<h3>📚 Moon Read Catalog - Letter {letter}</h3>'
+            html_content += f'<p><strong>Books starting with "{letter}": {len(books)}</strong></p>'
+            html_content += '<hr>'
+            
+            for idx, book in enumerate(books, 1):
+                html_content += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
+            
+            # Create Telegraph page for this letter
+            title = f'Moon Read Catalog - {letter}' if letter != '#' else 'Moon Read Catalog - Numbers & Special'
+            
+            try:
+                response = telegraph.create_page(
+                    title=title,
+                    html_content=html_content,
+                    author_name='Moon Read',
+                    author_url='https://t.me/moon_read'
+                )
                 
-                # Split T novels
-                the_am_books = []
-                the_nz_others_books = []
+                TELEGRAPH_LINKS[letter] = {
+                    'url': f"https://telegra.ph/{response['path']}",
+                    'count': len(books)
+                }
                 
-                for book in books:
-                    title_upper = book['title'].upper()
-                    
-                    # Check if starts with "THE "
-                    if title_upper.startswith('THE '):
-                        # Get the word after "THE "
-                        remaining = title_upper[4:].strip()
-                        if remaining:
-                            second_word_first = remaining[0]
-                            
-                            # A-M category
-                            if second_word_first >= 'A' and second_word_first <= 'M':
-                                the_am_books.append(book)
-                            # N-Z category
-                            else:
-                                the_nz_others_books.append(book)
-                        else:
-                            the_nz_others_books.append(book)
-                    else:
-                        # Not starting with "THE " - put in second category
-                        the_nz_others_books.append(book)
+                logger.info(f"✅ Created Telegraph page for letter {letter} ({len(books)} books)")
                 
-                # Create Telegraph page for T (THE A-M)
-                html_content_am = f'<h3>📚 Moon Read Catalog - Letter T (THE A-M)</h3>'
-                html_content_am += f'<p><strong>Books starting with "THE A-M": {len(the_am_books)}</strong></p>'
-                html_content_am += '<hr>'
-                
-                for idx, book in enumerate(the_am_books, 1):
-                    html_content_am += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
-                
-                try:
-                    response_am = telegraph.create_page(
-                        title='Moon Read Catalog - T (THE A-M)',
-                        html_content=html_content_am,
-                        author_name='Moon Read',
-                        author_url='https://t.me/moon_read'
-                    )
-                    
-                    TELEGRAPH_LINKS['T_AM'] = {
-                        'url': f"https://telegra.ph/{response_am['path']}",
-                        'count': len(the_am_books),
-                        'label': 'T (THE A-M)'
-                    }
-                    
-                    logger.info(f"✅ Created Telegraph page for T (THE A-M) ({len(the_am_books)} books)")
+                # Add delay between requests to avoid flood control (10 seconds)
+                if i < len(sorted_letters) - 1:  # Don't delay after last one
                     time.sleep(10)
                     
-                except Exception as e:
-                    logger.error(f"❌ Error creating page for T (THE A-M): {e}")
-                
-                # Create Telegraph page for T (THE N-Z + Others)
-                html_content_nz = f'<h3>📚 Moon Read Catalog - Letter T (THE N-Z + Others)</h3>'
-                html_content_nz += f'<p><strong>Books starting with "THE N-Z" + other T novels: {len(the_nz_others_books)}</strong></p>'
-                html_content_nz += '<hr>'
-                
-                for idx, book in enumerate(the_nz_others_books, 1):
-                    html_content_nz += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
-                
-                try:
-                    response_nz = telegraph.create_page(
-                        title='Moon Read Catalog - T (THE N-Z + Others)',
-                        html_content=html_content_nz,
-                        author_name='Moon Read',
-                        author_url='https://t.me/moon_read'
-                    )
-                    
-                    TELEGRAPH_LINKS['T_NZ'] = {
-                        'url': f"https://telegra.ph/{response_nz['path']}",
-                        'count': len(the_nz_others_books),
-                        'label': 'T (THE N-Z+)'
-                    }
-                    
-                    logger.info(f"✅ Created Telegraph page for T (THE N-Z + Others) ({len(the_nz_others_books)} books)")
-                    time.sleep(10)
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error creating page for T (THE N-Z + Others): {e}")
-                
-            else:
-                # Normal handling for other letters
-                html_content = f'<h3>📚 Moon Read Catalog - Letter {letter}</h3>'
-                html_content += f'<p><strong>Books starting with "{letter}": {len(books)}</strong></p>'
-                html_content += '<hr>'
-                
-                for idx, book in enumerate(books, 1):
-                    html_content += f'<p>{idx}. <a href="{book["link"]}">{book["title"]}</a></p>'
-                
-                title = f'Moon Read Catalog - {letter}' if letter != '#' else 'Moon Read Catalog - Numbers & Special'
-                
-                try:
-                    response = telegraph.create_page(
-                        title=title,
-                        html_content=html_content,
-                        author_name='Moon Read',
-                        author_url='https://t.me/moon_read'
-                    )
-                    
-                    TELEGRAPH_LINKS[letter] = {
-                        'url': f"https://telegra.ph/{response['path']}",
-                        'count': len(books)
-                    }
-                    
-                    logger.info(f"✅ Created Telegraph page for letter {letter} ({len(books)} books)")
-                    
-                    if i < len(sorted_letters) - 1:
-                        time.sleep(10)
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error creating page for {letter}: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error creating page for {letter}: {e}")
+                # Continue with other letters even if one fails
         
         logger.info(f"✅ Generated {len(TELEGRAPH_LINKS)} Telegraph pages successfully!")
         return True
@@ -324,6 +240,7 @@ Want another? Type `/random` again!
 async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show alphabet keyboard with Telegraph links"""
     
+    # Check if Telegraph links are ready
     if not TELEGRAPH_LINKS:
         await update.message.reply_text(
             "⏳ Catalog is being prepared... Please try again in a moment.\n\n"
@@ -331,31 +248,18 @@ async def catalog_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Create inline keyboard with alphabet buttons
+    # Create inline keyboard with alphabet buttons (6 buttons per row)
     keyboard = []
-    
-    # Get all letter keys (including T_AM and T_NZ)
-    all_keys = list(TELEGRAPH_LINKS.keys())
-    
-    # Sort: A-Z (excluding T_AM, T_NZ), then T_AM, T_NZ, then #
-    regular_letters = sorted([k for k in all_keys if k.isalpha() and k not in ['T']])
-    t_keys = [k for k in all_keys if k.startswith('T_')]
-    special_keys = [k for k in all_keys if k == '#']
-    
-    sorted_keys = regular_letters + t_keys + special_keys
+    sorted_letters = sorted([l for l in TELEGRAPH_LINKS.keys() if l != '#']) + (['#'] if '#' in TELEGRAPH_LINKS else [])
     
     row = []
-    for key in sorted_keys:
-        data = TELEGRAPH_LINKS[key]
-        
-        # Use custom label if available, otherwise use key
-        button_text = data.get('label', f"{key} ({data['count']})")
-        if 'label' not in data:
-            button_text = f"{key} ({data['count']})"
-        
+    for letter in sorted_letters:
+        data = TELEGRAPH_LINKS[letter]
+        button_text = f"{letter} ({data['count']})"
+        # Use URL button to directly open Telegraph page
         row.append(InlineKeyboardButton(button_text, url=data['url']))
         
-        if len(row) == 6 or key == sorted_keys[-1]:
+        if len(row) == 6 or letter == sorted_letters[-1]:  # 6 buttons per row
             keyboard.append(row)
             row = []
     
@@ -369,8 +273,6 @@ Total Books: **{len(BOOKS)}**
 🔤 **Click any letter to browse:**
 
 Each button will open a Telegraph page with all books starting with that letter!
-
-**Note:** Letter T is split into two parts due to size.
 """
     
     await update.message.reply_text(
@@ -398,6 +300,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += f"📚 **Total Books:** {len(BOOKS)}\n\n"
     message += f"🔤 **Books by Letter:**\n"
     
+    # Show counts for each letter
     for letter in sorted(letter_counts.keys()):
         message += f"• {letter}: {letter_counts[letter]}\n"
     
@@ -406,10 +309,20 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
+async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show tutorial link"""
+    await update.message.reply_text(
+        "📚 Moon Read Tutorial\n\n"
+        "🔗 https://t.me/Moonread_Tutor",
+        disable_web_page_preview=False
+    )
+
+
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle plain text messages"""
     text = update.message.text
     
+    # Handle KATALOG keyword
     if text.lower() == 'katalog':
         await catalog_command(update, context)
 
@@ -421,6 +334,7 @@ def main():
     print("🌐 Deployed on Seenode.com")
     print("=" * 70)
     
+    # Load catalog
     print("📚 Loading catalog...")
     if not load_catalog():
         print("❌ Failed to load catalog!")
@@ -428,8 +342,9 @@ def main():
     
     print(f"✅ Loaded {len(BOOKS)} books")
     
+    # Generate Telegraph pages
     print("\n📝 Generating Telegraph catalog pages...")
-    print("⏳ This will take about 5-7 minutes (Letter T split into 2 pages)")
+    print("⏳ This will take about 4-5 minutes (10 sec delay between pages)")
     print("💡 The bot will accept commands after generation is complete\n")
     
     if not generate_telegraph_pages():
@@ -438,6 +353,7 @@ def main():
     else:
         print(f"✅ Telegraph pages ready!")
     
+    # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Add handlers
@@ -448,18 +364,20 @@ def main():
     application.add_handler(CommandHandler("catalog", catalog_command))
     application.add_handler(CommandHandler("katalog", catalog_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("tutorial", tutorial_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
     
     print("\n" + "=" * 70)
     print("✅ Bot started successfully!")
     print("=" * 70)
     print("🔍 Search: /search keyword")
-    print("📋 Catalog: /catalog (T split into 2 categories!)")
+    print("📋 Catalog: /catalog or KATALOG (Telegraph + Buttons!)")
     print("📖 Random: /random")
     print("📊 Stats: /stats")
     print("=" * 70)
     print("\n🚀 Bot is running!\n")
     
+    # Run bot (polling mode for Seenode)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
